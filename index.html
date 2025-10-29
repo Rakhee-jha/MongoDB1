@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Todo App (Node + Mongo + Express)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    .error { color: #b00020; }
+    .done { text-decoration: line-through; opacity: 0.7; }
+    form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    input[type="text"] { flex: 1; padding: 0.5rem; }
+    button { padding: 0.5rem 0.8rem; cursor: pointer; }
+    li { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Todos</h1>
+
+  <div id="app">
+    <!-- Form + two-way binding -->
+    <form @submit.prevent="create">
+      <input v-model.trim="title" type="text" placeholder="New todo title" required />
+      <button type="submit">Add</button>
+    </form>
+
+    <!-- Conditional error display (directive) -->
+    <p v-if="error" class="error">{{ error }}</p>
+
+    <!-- Empty state (directive) -->
+    <p v-show="todos.length === 0">No todos yet. Add one!</p>
+
+    <!-- List -->
+    <ul>
+      <li v-for="t in todos" :key="t._id">
+        <input type="checkbox" v-model="t.done" @change="toggle(t)" />
+        <span :class="{ done: t.done }">{{ t.title }}</span>
+        <button @click="remove(t)">Delete</button>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script>
+    const API = "/api/todos";
+
+    const app = Vue.createApp({
+      data: () => ({
+        todos: [],
+        title: "",
+        error: ""
+      }),
+      async mounted() {
+        await this.fetchTodos();
+      },
+      methods: {
+        async fetchTodos() {
+          this.error = "";
+          try {
+            const res = await fetch(API);
+            this.todos = await res.json();
+          } catch (e) { this.error = "Failed to load todos."; }
+        },
+        async create() {
+          this.error = "";
+          try {
+            const res = await fetch(API, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ title: this.title })
+            });
+            if (!res.ok) throw new Error("Create failed");
+            const todo = await res.json();
+            this.todos.unshift(todo);
+            this.title = "";
+          } catch (e) { this.error = e.message; }
+        },
+        async toggle(todo) {
+          this.error = "";
+          try {
+            const res = await fetch(`${API}/${todo._id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ done: !!todo.done })
+            });
+            if (!res.ok) throw new Error("Update failed");
+          } catch (e) { this.error = e.message; }
+        },
+        async remove(todo) {
+          this.error = "";
+          try {
+            const res = await fetch(`${API}/${todo._id}`, { method: "DELETE" });
+            if (res.status !== 204) throw new Error("Delete failed");
+            this.todos = this.todos.filter(t => t._id !== todo._id);
+          } catch (e) { this.error = e.message; }
+        }
+      }
+    });
+
+    app.mount("#app");
+  </script>
+</body>
+</html>
